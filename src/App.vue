@@ -1,47 +1,131 @@
-<script setup>
-import HelloWorld from './components/HelloWorld.vue'
-import TheWelcome from './components/TheWelcome.vue'
-</script>
-
 <template>
-  <header>
-    <img alt="Vue logo" class="logo" src="./assets/logo.svg" width="125" height="125" />
+<Search 
+  @search="doSearch" 
+  @sort="doSort"
+  @order="reOrder"
+  @reSort="defaultSort"
+/>
+    
+<DataTable 
+  :currentSort="currentSort" 
+  :splitedStops="splitedStops" 
+  :isAsc="isAsc" 
+  @order="setOrder" 
+/>
 
-    <div class="wrapper">
-      <HelloWorld msg="You did it!" />
-    </div>
-  </header>
+<Pagination 
+  :currentP="currentPage" 
+  :totalP="totalPages" 
+  @click="updateCurrentPage" 
+/>
 
-  <main>
-    <TheWelcome />
-  </main>
 </template>
 
-<style scoped>
-header {
-  line-height: 1.5;
-}
+<script>
+import { ref, computed, watch  } from 'vue'
+import Pagination from './Pagination.vue'
+import Search from './Search.vue'
+import DataTable from './DataTable.vue'
 
-.logo {
-  display: block;
-  margin: 0 auto 2rem;
-}
+export default {
+  components: {
+    Pagination,
+    Search,
+    DataTable
+  },
+  setup() {
+    const uBikeStops = ref([]);
+    const searchName = ref('');
+    const currentSort = ref('');
 
-@media (min-width: 1024px) {
-  header {
-    display: flex;
-    place-items: center;
-    padding-right: calc(var(--section-gap) / 2);
+    // asc 遞增(由小到大); desc 遞減(由大到小)
+    const isAsc = ref(true)
+
+    const uBikeData = async () => {
+      const response = await fetch('https://tcgbusfs.blob.core.windows.net/blobyoubike/YouBikeTP.gz')
+      const json = await response.json()
+      const data = Object.keys(json.retVal).map(key => json.retVal[key])
+      uBikeStops.value = data
+    }
+    uBikeData()
+    
+    const filtedStops = computed(() => {
+      return uBikeStops.value.filter(d => d.sna.includes(searchName.value))
+    })
+
+    const sortedStops = computed(() => {
+      if (currentSort.value === '') {
+        return filtedStops.value
+      }
+
+      const stops = [...filtedStops.value]
+
+      if (isAsc.value) {
+        stops.sort((a, b) => a[currentSort.value] - b[currentSort.value])
+      } else {
+        stops.sort((a, b) => b[currentSort.value] - a[currentSort.value])
+      }
+
+      return stops
+    })
+
+    const setOrder = (field, order) => {
+      currentSort.value = field
+      isAsc.value = order
+    }
+
+        
+    const countOfPages = ref(10)
+    const currentPage = ref(1)  
+    const totalPages = computed(() => {
+        return Math.ceil(filtedStops.value.length / countOfPages.value)
+    });
+
+    const splitedStops = computed(() => {
+      // 0 ~ 9
+      let start = (currentPage.value - 1) * countOfPages.value
+      let end = Number(start) + Number(countOfPages.value)
+      console.log('start : ' + start + ' end : ' + end)
+      return sortedStops.value.slice(start, end)
+    })
+
+    const updateCurrentPage = (val) => {
+      currentPage.value = val
+    }
+
+    const doSearch = (val) => {
+      searchName.value = val
+    }
+
+    const doSort = (val) => {
+      countOfPages.value = val
+    }
+
+    const reOrder = () => {
+      currentPage.value = 1
+    }
+
+    const defaultSort = () => {
+      currentSort.value = ''
+    }
+
+    return {
+      searchName,
+      filtedStops,
+      isAsc,
+      sortedStops,
+      currentSort,
+      setOrder,
+      splitedStops,
+      totalPages,
+      currentPage,
+      countOfPages,
+      updateCurrentPage,
+      doSearch,
+      doSort,
+      reOrder,
+      defaultSort
+    }
   }
-
-  .logo {
-    margin: 0 2rem 0 0;
-  }
-
-  header .wrapper {
-    display: flex;
-    place-items: flex-start;
-    flex-wrap: wrap;
-  }
 }
-</style>
+</script>
